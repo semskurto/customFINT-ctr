@@ -22,7 +22,7 @@ python train.py --feature_size_file ./data/${data}/data.feat_info \
     --model_name $model_name \
     --model_dir ./checkpoints/${version}/${data}/ \
     --learning_rate 0.001 \
-    --epoch 100 \
+    --epoch 50 \
     --l2_reg 0.0 \
     --dropout_rate 0 \
     --batch_size 128 \
