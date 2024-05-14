@@ -81,7 +81,7 @@ def train_and_eval(train_data_iter, val_data_iter, eval_data_iter,
 
 
 def run(args):
-    vocab_size = 22 #get_vocab_size(args.feature_size_file)
+    vocab_size = 22 #get_vocab_size(args.feature_size_file) # ONLY SET FOR TEST DATASET(AVAZU)
     train_dataset = build_dataset(args.train_data, args.epoch, args.batch_size)
     val_dataset = build_dataset(args.val_data, 1, args.batch_size*5)
     eval_dataset = build_dataset(args.eval_data, 1, args.batch_size*5)
