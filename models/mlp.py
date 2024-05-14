@@ -2,17 +2,17 @@
 # -*- coding=utf8 -*-
 """
 # Author: -
-# Created Time : 13 May 2024
+# Created Time : 2021-05-14
 # File Name: models/mlp.py
 # Description: Test for compare with FIST
 """
 import tensorflow as tf
 from models.base_model import customBaseModel
-from models.layers import deep_layer
+from models.layers import dropout_layer
 
 
 class ModelConfig:
-    hidden_units = [200, 200, 200]
+    hidden_units = [200, 200]
 
 
 class Model(customBaseModel):
@@ -24,7 +24,7 @@ class Model(customBaseModel):
         emb_dim = self._params['emb_size']
         field_num = self._field_num
         l2_reg = self._params['l2_reg']
-        with tf.variable_scope('fint', reuse=tf.AUTO_REUSE):
+        with tf.variable_scope('mlp', reuse=tf.AUTO_REUSE):
             feat_idx = tf.reshape(feat_idx, [-1, field_num])
             feat_val = tf.reshape(feat_val, [-1, field_num])
             embedding_matrix = tf.get_variable('feature_embedding',
@@ -39,12 +39,18 @@ class Model(customBaseModel):
             feat_val = tf.reshape(feat_val, [-1, field_num, 1])
             model_input = feat_emb * feat_val
             fc_input = tf.reshape(model_input, shape=[-1, field_num*emb_dim])
-            logits = deep_layer(fc_input,
-                                hidden_units=self._model_config.hidden_units,
-                                activation=tf.nn.relu,
-                                l2_reg=l2_reg,
-                                dropout_rate=self._params['dropout_rate'],
-                                is_train=self.is_train,
-                                output_bias=True)
+            for unit in self._model_config.hidden_units:
+                fc_output = tf.layers.dense(fc_input,
+                                            unit,
+                                            activation=tf.nn.relu,
+                                            kernel_regularizer=tf.contrib.layers.l2_regularizer(l2_reg),
+                                            bias_regularizer=tf.contrib.layers.l2_regularizer(l2_reg))
+                fc_output = dropout_layer(fc_output, self._params['dropout_rate'], self.is_train)
+            
+            logits = tf.layers.dense(fc_output, 1,
+                                  use_bias=True,
+                                  kernel_regularizer=tf.contrib.layers.l2_regularizer(l2_reg),
+                                  bias_regularizer=tf.contrib.layers.l2_regularizer(l2_reg))
+            logits = tf.reshape(logits, shape=[-1])
             scores = tf.sigmoid(logits)
         return logits, scores
