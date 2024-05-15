@@ -76,7 +76,7 @@ def predict(checkpoint_path, X_values, y_values, feat_idx, model_name="fint"):
         for op in graph.get_operations():
             if op.type == "Placeholder" or op.type == "Placeholder_1":
                 print("Input (Placeholder):", op.name)
-            elif op.type in ["Sigmoid"]:  # ["Softmax", "Sigmoid", "Identity"]Tahmin katmanının türüne göre değiştirin
+            elif op.type in ["Sigmoid"]:  # ["Softmax", "Sigmoid", "Identity"]
                 print("Output:", op.name)
 
         
