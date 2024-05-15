@@ -48,6 +48,7 @@ def parse_array_data(data):
     # Assuming feat_idx and X_values[i] are numpy arrays
     feat_idx = tf.cast(feat_idx, dtype=tf.int64)
     feat_val = tf.cast(feat_val, dtype=tf.float32)
+    broken_label = tf.constant(0, dtype=tf.float32)
 
     # Normalize numerical features (Same as in data_loader.py->train code)
     feat_val_signal = tf.sign(feat_val)
@@ -56,7 +57,7 @@ def parse_array_data(data):
     feat_val = tf.minimum(tf.math.abs(feat_val), norm_val2)
     feat_val = feat_val * feat_val_signal
 
-    return feat_idx, feat_val
+    return broken_label, feat_idx, feat_val
 
 
 def predict(model, sess, data_iter_handle):
@@ -141,19 +142,17 @@ def main():
         # Simulate prediction -----------------------------------------------------
         for i in range(15):
 
-            dataset = tf.data.Dataset.from_tensor_slices({
-                "feat_idx": feat_idx,
-                "feat_val": X_values[i]
-            })
+            dataset = tf.data.Dataset.from_tensors({
+                "feat_idx": tf.reshape(feat_idx, (-1, 1)),
+                "feat_val": tf.reshape(X_values[i], (-1, 1))
+            }).batch(1) 
             dataset = dataset.map(parse_array_data)
-            dataset = dataset.batch(2)  # batch_size=1
 
             data_iter = dataset.make_initializable_iterator()
 
             # Tahmin yap ve sonucu kaydet
             handle = sess.run(data_iter.string_handle())
             sess.run(data_iter.initializer)  # Her iterasyonda dataset'i baştan başlat
-            print(handle)
             prediction = sess.run(output_tensor, feed_dict={input_tensor: handle,
                                                             is_train_tensor: False})
             predictions.append(prediction)
