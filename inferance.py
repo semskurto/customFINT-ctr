@@ -48,7 +48,7 @@ def parse_array_data(data):
     # Assuming feat_idx and X_values[i] are numpy arrays
     feat_idx = tf.cast(feat_idx, dtype=tf.int64)
     feat_val = tf.cast(feat_val, dtype=tf.float32)
-    broken_label = tf.constant(0, dtype=tf.float32)
+    broken_label = tf.constant(0.5, dtype=tf.float32)
 
     # Normalize numerical features (Same as in data_loader.py->train code)
     feat_val_signal = tf.sign(feat_val)
@@ -60,39 +60,55 @@ def parse_array_data(data):
     return broken_label, feat_idx, feat_val
 
 
-def predict(model, sess, data_iter_handle):
-    scores = []
+def predict(checkpoint_path, X_values, y_values, feat_idx, model_name="fint"):
+    print("Model Name:", model_name, "--------------")
+    # Create a session
+    with tf.Session() as sess:
+        # Load the graph model
+        saver = tf.train.import_meta_graph(checkpoint_path + '.meta')
+        graph = tf.get_default_graph()
 
-    while True:
-        try:
-            batch_scores = sess.run(
-                                    [model.scores],
-                                    feed_dict={model.handle:data_iter_handle,
-                                    model.is_train: False}
-                                    )
-            scores.extend(batch_scores)
-        except tf.errors.OutOfRangeError:
-            break
-    return scores
+        # Load the weights
+        saver.restore(sess, checkpoint_path)
 
+        
+        # Find model inputs and outputs
+        for op in graph.get_operations():
+            if op.type == "Placeholder" or op.type == "Placeholder_1":
+                print("Input (Placeholder):", op.name)
+            elif op.type in ["Sigmoid"]:  # ["Softmax", "Sigmoid", "Identity"]Tahmin katmanının türüne göre değiştirin
+                print("Output:", op.name)
 
-params1 = {
-    'field_num': 22,
-    'lr': 0.001,
-    'l2_reg': 0,
-    'dropout_rate': 0,
-    'batch_size': 1,
-    'emb_size': 16
-    }
+        
+        # Set input and output tensors for prediction
+        input_tensor = tf.get_default_graph().get_tensor_by_name("Placeholder:0")
+        is_train_tensor = tf.get_default_graph().get_tensor_by_name("is_train:0")
 
-params2 = {
-    'field_num': 22,
-    'lr': 0.001,
-    'l2_reg': 0,
-    'dropout_rate': 0.3,
-    'batch_size': 1,
-    'emb_size': 32
-    }
+        output_tensor = tf.get_default_graph().get_tensor_by_name(f"{model_name}/Sigmoid:0")
+
+        predictions = []
+        # Simulate prediction -----------------------------------------------------
+        for i in range(len(X_values)-1):
+
+            dataset = tf.data.Dataset.from_tensors({
+                "feat_idx": feat_idx,
+                "feat_val": X_values[i]
+            }).batch(1) 
+            dataset = dataset.map(parse_array_data)
+
+            data_iter = dataset.make_initializable_iterator()
+
+            handle = sess.run(data_iter.string_handle())
+            sess.run(data_iter.initializer)
+            prediction = sess.run(output_tensor, feed_dict={input_tensor: handle,
+                                                            is_train_tensor: False})
+            predictions.append(prediction)
+
+            print("predicted:", prediction, "--> y_true:", y_values[i])
+
+    tf.reset_default_graph()
+    print("-----------------*-----------------")
+
 
 def main():
     # Data paths
@@ -113,54 +129,12 @@ def main():
 
 
 
-    # Load FINT model
-    # Yeni bir tf.Session oluşturun
-    with tf.Session() as sess:
-        # .meta dosyasından grafiği geri yükleyin
-        saver = tf.train.import_meta_graph(checkpoint_path1 + '.meta')
-        graph = tf.get_default_graph()
+    # Load FINT model and predict
+    predict(checkpoint_path1, X_values, y_values, feat_idx)
 
-        # .index ve .data dosyalarından değişkenleri geri yükleyin (bu dosyaların adları modeliniz.meta dosyasındaki checkpoint dosyasında belirtilmiştir)
-        saver.restore(sess, checkpoint_path1)
+    # Load MLP model and predict
+    predict(checkpoint_path2, X_values, y_values, feat_idx, model_name="mlp")
 
-        
-        # Input ve Output olabilecek tensörleri filtreleyin (op.type ile)
-        for op in graph.get_operations():
-            if op.type == "Placeholder" or op.type == "Placeholder_1":
-                print("Input (Placeholder):", op.name)
-            elif op.type in ["Sigmoid"]:  # ["Softmax", "Sigmoid", "Identity"]Tahmin katmanının türüne göre değiştirin
-                print("Output:", op.name)
-
-        
-        # Grafiğinizdeki giriş ve çıktı tensörlerini (placeholder'ları) bulun
-        input_tensor = tf.get_default_graph().get_tensor_by_name("Placeholder:0")  # "placeholder_ismi" yerine kendi placeholder'ınızın adını yazın
-        is_train_tensor = tf.get_default_graph().get_tensor_by_name("is_train:0") # "is_train" yerine kendi is_train placeholder'ınızın adını yazın
-
-        output_tensor = tf.get_default_graph().get_tensor_by_name("fint/Sigmoid:0")     # "output_ismi" yerine kendi output tensörünüzün adını yazın
-
-        predictions = []
-        # Simulate prediction -----------------------------------------------------
-        for i in range(15):
-
-            dataset = tf.data.Dataset.from_tensors({
-                "feat_idx": tf.reshape(feat_idx, (-1, 1)),
-                "feat_val": tf.reshape(X_values[i], (-1, 1))
-            }).batch(1) 
-            dataset = dataset.map(parse_array_data)
-
-            data_iter = dataset.make_initializable_iterator()
-
-            # Tahmin yap ve sonucu kaydet
-            handle = sess.run(data_iter.string_handle())
-            sess.run(data_iter.initializer)  # Her iterasyonda dataset'i baştan başlat
-            prediction = sess.run(output_tensor, feed_dict={input_tensor: handle,
-                                                            is_train_tensor: False})
-            predictions.append(prediction)
-
-    print(predictions)
-
-
-    
 
 
 main()
