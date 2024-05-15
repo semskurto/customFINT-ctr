@@ -1,5 +1,7 @@
 import tensorflow as tf
 import pandas as pd
+from importlib import import_module
+
 
 from sklearn.preprocessing import LabelEncoder
 
@@ -63,85 +65,100 @@ def predict(model, sess, data_iter_handle):
     while True:
         try:
             batch_scores = sess.run(
-                                                    [model.scores],
-                                                    feed_dict={model.handle:data_iter_handle,
-                                                    model.is_train: False}
-                                                    )
+                                    [model.scores],
+                                    feed_dict={model.handle:data_iter_handle,
+                                    model.is_train: False}
+                                    )
             scores.extend(batch_scores)
         except tf.errors.OutOfRangeError:
             break
     return scores
 
 
+params1 = {
+    'field_num': 22,
+    'lr': 0.001,
+    'l2_reg': 0,
+    'dropout_rate': 0,
+    'batch_size': 1,
+    'emb_size': 16
+    }
 
+params2 = {
+    'field_num': 22,
+    'lr': 0.001,
+    'l2_reg': 0,
+    'dropout_rate': 0.3,
+    'batch_size': 1,
+    'emb_size': 32
+    }
 
 def main():
     # Data paths
     test_file_path = '/home/sems/Documents/GitHub/customFINT-ctr/RESULT/test.csv'
 
+    # Load test.csv file
+    data = load_csv(test_file_path)
+    print(data.head())
+
+    # Preprocess data
+    X_values, y_values, feat_cols, feat_idx, label = preprocess_data(data)
+
     model_dir1 = '/home/sems/Documents/GitHub/customFINT-ctr/RESULT/fint0/avazu_tmp'
-    checkpoint_path1 = model_dir1 + "/model.ckpt-245000"
+    checkpoint_path1 = model_dir1 + '/model.ckpt-245000'
 
     model_dir2 = '/home/sems/Documents/GitHub/customFINT-ctr/RESULT/mlp0/avazu_tmp'
-    checkpoint_path2 = model_dir2 + "/model.ckpt-80000"
+    checkpoint_path2 = model_dir2 + '/model.ckpt-80000'
+
+
 
     # Load FINT model
-    graph1 = tf.Graph()
-    with graph1.as_default():
-        # Load the meta graph
-        model1 = tf.train.import_meta_graph(checkpoint_path1 + ".meta")
+    # Yeni bir tf.Session oluşturun
+    with tf.Session() as sess:
+        # .meta dosyasından grafiği geri yükleyin
+        saver = tf.train.import_meta_graph(checkpoint_path1 + '.meta')
+        graph = tf.get_default_graph()
 
-        """
-    # Load MLP model
-    graph2 = tf.Graph()
-    with graph2.as_default():
-        # Load the meta graph
-        model2 = tf.train.import_meta_graph(checkpoint_path2 + ".meta")
+        # .index ve .data dosyalarından değişkenleri geri yükleyin (bu dosyaların adları modeliniz.meta dosyasındaki checkpoint dosyasında belirtilmiştir)
+        saver.restore(sess, checkpoint_path1)
 
-    # Create a session for the MLP model
-    with tf.Session(graph=graph2) as sess2:
-        # Load the variables
-        model2.restore(sess2, checkpoint_path2)"""
+        
+        # Input ve Output olabilecek tensörleri filtreleyin (op.type ile)
+        for op in graph.get_operations():
+            if op.type == "Placeholder" or op.type == "Placeholder_1":
+                print("Input (Placeholder):", op.name)
+            elif op.type in ["Sigmoid"]:  # ["Softmax", "Sigmoid", "Identity"]Tahmin katmanının türüne göre değiştirin
+                print("Output:", op.name)
 
-    # Create a session for the FINT model
-    with tf.Session(graph=graph1) as sess1:
-        # Load the variables
-        model1.restore(sess1, checkpoint_path1)
+        
+        # Grafiğinizdeki giriş ve çıktı tensörlerini (placeholder'ları) bulun
+        input_tensor = tf.get_default_graph().get_tensor_by_name("Placeholder:0")  # "placeholder_ismi" yerine kendi placeholder'ınızın adını yazın
+        is_train_tensor = tf.get_default_graph().get_tensor_by_name("is_train:0") # "is_train" yerine kendi is_train placeholder'ınızın adını yazın
 
-        # Load test.csv file
-        data = load_csv(test_file_path)
-        print(data.head())
+        output_tensor = tf.get_default_graph().get_tensor_by_name("fint/Sigmoid:0")     # "output_ismi" yerine kendi output tensörünüzün adını yazın
 
-        # Preprocess data
-        X_values, y_values, feat_cols, feat_idx, label = preprocess_data(data)
-
+        predictions = []
         # Simulate prediction -----------------------------------------------------
         for i in range(15):
 
-            dataset = tf.data.Dataset.from_tensor_slices({"feat_idx": feat_idx,
-                                                        "feat_val": X_values[i]}
-                                                        )
-            
+            dataset = tf.data.Dataset.from_tensor_slices({
+                "feat_idx": feat_idx,
+                "feat_val": X_values[i]
+            })
             dataset = dataset.map(parse_array_data)
-            dataset = dataset.batch(batch_size=1)
-            
-            # Create an iterator
+            dataset = dataset.batch(2)  # batch_size=1
+
             data_iter = dataset.make_initializable_iterator()
 
-            data_iter_handle1 = sess1.run(data_iter.string_handle())
-            sess1.run(data_iter.initializer)
-            scores1, labels1 = predict(model1, sess1, data_iter_handle1)
-            """
-            data_iter_handle2 = sess2.run(data_iter.string_handle())
-            sess2.run(data_iter.initializer)
-            scores2, labels2 = predict(model2, sess2, data_iter_handle2)"""
+            # Tahmin yap ve sonucu kaydet
+            handle = sess.run(data_iter.string_handle())
+            sess.run(data_iter.initializer)  # Her iterasyonda dataset'i baştan başlat
+            print(handle)
+            prediction = sess.run(output_tensor, feed_dict={input_tensor: handle,
+                                                            is_train_tensor: False})
+            predictions.append(prediction)
 
-            print(f"-----------------------{i}-------------------------")
-            print("Input: ", X_values[i])
-            print("FINT Model Prediction: ","\n", scores1, "\n", labels1)
-            #print("MLP Model Prediction: ", "\n", scores2, "\n", labels2)
-            print("Actual Label: ", y_values[i])
-            print("-------------------------------------------------")
+    print(predictions)
 
 
     
