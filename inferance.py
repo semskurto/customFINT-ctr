@@ -1,6 +1,7 @@
 import tensorflow as tf
 import pandas as pd
 from importlib import import_module
+import time
 
 
 from sklearn.preprocessing import LabelEncoder
@@ -89,6 +90,7 @@ def predict(checkpoint_path, X_values, y_values, feat_idx, model_name="fint"):
         predictions = []
         # Simulate prediction -----------------------------------------------------
         for i in range(len(X_values)-1):
+            start_time = time.time()
 
             dataset = tf.data.Dataset.from_tensors({
                 "feat_idx": feat_idx,
@@ -103,8 +105,10 @@ def predict(checkpoint_path, X_values, y_values, feat_idx, model_name="fint"):
             prediction = sess.run(output_tensor, feed_dict={input_tensor: handle,
                                                             is_train_tensor: False})
             predictions.append(prediction)
+            end_time = time.time()
 
-            print("predicted:", prediction, "--> y_true:", y_values[i])
+            print("[1] Predicted:", prediction, "--> y_true:", y_values[i])
+            print("[2] Inferance Time:", (end_time - start_time) * 1000, "ms")
 
     tf.reset_default_graph()
     print("-----------------*-----------------")
