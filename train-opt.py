@@ -142,7 +142,7 @@ def objective(trial):
     #args.batch_size = trial.suggest_int('batch_size', 32, 256)
 
     auc = run(args)
-
+    tf.reset_default_graph()
     return auc
     
 
@@ -153,3 +153,4 @@ study.optimize(objective, n_trials=50)
 best_params = study.best_params
 
 print('Best params:', best_params)
+#Best params: {'learning_rate': 0.00041643917539636437, 'l2_reg': 1.8607253698759446e-05, 'dropout_rate': 0.11191878531813348}
