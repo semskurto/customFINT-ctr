@@ -35,8 +35,8 @@ Make sure you have a `test.csv` file prepared in the correct format. Then run:
 python inference.py
 ```
 
-#### FINT Hyperparameter Optimization:
-
+#### FINT Hyperparameter Optimization:  
+I use optuna.
 ```bash
 python train-opt.py
 ```
